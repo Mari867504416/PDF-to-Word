@@ -1,33 +1,38 @@
 import streamlit as st
-from pdf2image import convert_from_bytes
+import fitz  # PyMuPDF
+from PIL import Image
 import pytesseract
 from docx import Document
 from io import BytesIO
 
-# Configure Tesseract path
+# Configure Tesseract
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-st.title("PDF to Word OCR (Tamil + English)")
+st.title("PDF to Word OCR (Tamil + English) - No Poppler needed")
 
 uploaded_file = st.file_uploader("Upload PDF", type="pdf")
 
 if uploaded_file:
-    st.write("🔄 Converting PDF to images...")
+    st.write("🔄 Converting PDF to images using PyMuPDF...")
+    pdf = fitz.open(stream=uploaded_file.read(), filetype="pdf")
     
-    # Convert PDF bytes to images
-    pages = convert_from_bytes(uploaded_file.read(), dpi=300)
+    images = []
+    for page_num in range(len(pdf)):
+        page = pdf[page_num]
+        pix = page.get_pixmap()
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        images.append(img)
     
     st.write("🔍 Running OCR...")
     text_output = ""
-    for i, page in enumerate(pages):
-        text = pytesseract.image_to_string(page, lang="tam+eng")
+    for i, img in enumerate(images):
+        text = pytesseract.image_to_string(img, lang="tam+eng")
         text_output += f"\n\n--- Page {i+1} ---\n\n{text}"
     
     # Save to Word in memory
     doc = Document()
     for line in text_output.split('\n'):
         doc.add_paragraph(line)
-    
     doc_bytes = BytesIO()
     doc.save(doc_bytes)
     doc_bytes.seek(0)
