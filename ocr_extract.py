@@ -11,18 +11,23 @@ uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
 
 if uploaded_file:
     st.info("⏳ Uploading file to OCR.space and extracting text...")
-    
-    # API call
+
     url = "https://api.ocr.space/parse/image"
+
     payload = {
         "apikey": API_KEY,
-        "language": "eng",   # Tamil unstable -> use eng for reliable results
-        "isOverlayRequired": False
+        "language": "eng",   # Tamil OCR not stable → use "eng" first
+        "isOverlayRequired": False,
+        "filetype": "pdf"    # ✅ FIX → explicitly tell API it's a PDF
     }
-    files = {"file": uploaded_file.getvalue()}
+
+    # pass correct file object with filename
+    files = {
+        "file": (uploaded_file.name, uploaded_file.getvalue())
+    }
 
     response = requests.post(url, data=payload, files=files)
-    
+
     try:
         result = response.json()
     except Exception as e:
