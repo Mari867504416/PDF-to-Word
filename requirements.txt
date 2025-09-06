@@ -1,3 +1,3 @@
-streamlit
-python-docx
-requests
+pip install streamlit pymupdf pytesseract pillow
+sudo apt-get install tesseract-ocr
+sudo apt-get install tesseract-ocr-tam  # Tamil
