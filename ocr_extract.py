@@ -1,60 +1,49 @@
 import streamlit as st
-import requests
-from docx import Document
+import fitz  # PyMuPDF
+import pytesseract
+from PIL import Image
+import io
 
-# 🔑 Your OCR.space API key
-API_KEY = "K89663616288957"
+# -------------------------------------
+# OCR function (Tesseract)
+# -------------------------------------
+def ocr_pdf(uploaded_file, lang="tam+eng"):
+    text = ""
+    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
 
-st.title("📄 PDF to Word (OCR.space API)")
+    for page_num in range(len(doc)):
+        # Convert page to image
+        pix = doc[page_num].get_pixmap()
+        img = Image.open(io.BytesIO(pix.tobytes("png")))
 
-uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
+        # OCR extract
+        page_text = pytesseract.image_to_string(img, lang=lang)
+        text += f"\n--- Page {page_num+1} ---\n"
+        text += page_text
+
+    return text
+
+# -------------------------------------
+# Streamlit UI
+# -------------------------------------
+st.title("📄 Unlimited PDF to Text (Tesseract OCR)")
+
+uploaded_file = st.file_uploader("📤 Upload PDF", type=["pdf"])
 
 if uploaded_file:
-    st.info("⏳ Uploading file to OCR.space and extracting text...")
+    st.info("⏳ Running OCR... Please wait...")
+    extracted_text = ocr_pdf(uploaded_file, lang="tam+eng")
 
-    url = "https://api.ocr.space/parse/image"
+    if extracted_text.strip():
+        st.success("✅ OCR Completed Successfully!")
+        st.text_area("📜 Extracted Text:", extracted_text, height=400)
 
-    payload = {
-        "apikey": API_KEY,
-        "language": "eng",   # Tamil OCR not stable → use "eng" first
-        "isOverlayRequired": False,
-        "filetype": "pdf"    # ✅ FIX → explicitly tell API it's a PDF
-    }
-
-    # pass correct file object with filename
-    files = {
-        "file": (uploaded_file.name, uploaded_file.getvalue())
-    }
-
-    response = requests.post(url, data=payload, files=files)
-
-    try:
-        result = response.json()
-    except Exception as e:
-        st.error(f"❌ Response parse error: {e}")
-        st.stop()
-
-    # Error handling
-    if isinstance(result, dict) and result.get("IsErroredOnProcessing"):
-        st.error(f"❌ OCR API Error: {result.get('ErrorMessage')}")
-        st.stop()
-
-    # Extract text
-    text = ""
-    if "ParsedResults" in result:
-        for item in result["ParsedResults"]:
-            text += item.get("ParsedText", "") + "\n"
-
-    if not text.strip():
-        st.warning("⚠️ No text extracted. Try with English docs or use Tesseract locally.")
+        # Download button
+        st.download_button(
+            label="💾 Download as TXT",
+            data=extracted_text,
+            file_name="ocr_output.txt",
+            mime="text/plain"
+        )
     else:
-        st.success("✅ OCR extraction done!")
-
-        # Save to Word
-        doc = Document()
-        doc.add_paragraph(text)
-        output_path = "output.docx"
-        doc.save(output_path)
-
-        with open(output_path, "rb") as f:
-            st.download_button("📥 Download Word File", f, file_name="output.docx")
+        st.error("❌ No text extracted. Try with a clearer PDF.")
