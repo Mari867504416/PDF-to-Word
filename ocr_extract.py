@@ -1,60 +1,84 @@
 import streamlit as st
 import requests
-from docx import Document
+import tempfile
+import os
+from PyPDF2 import PdfReader, PdfWriter
 
-# 🔑 Your OCR.space API key
-API_KEY = "K89663616288957"
+# -------------------------
+# Function: Split PDF (max 3 pages each)
+# -------------------------
+def split_pdf(uploaded_file, pages_per_file=3):
+    temp_dir = tempfile.mkdtemp()
+    reader = PdfReader(uploaded_file)
+    total_pages = len(reader.pages)
+    parts = []
 
-st.title("📄 PDF to Word (OCR.space API)")
+    for i in range(0, total_pages, pages_per_file):
+        writer = PdfWriter()
+        for j in range(i, min(i + pages_per_file, total_pages)):
+            writer.add_page(reader.pages[j])
 
-uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
+        part_path = os.path.join(temp_dir, f"part_{i//pages_per_file+1}.pdf")
+        with open(part_path, "wb") as f:
+            writer.write(f)
+        parts.append(part_path)
 
-if uploaded_file:
-    st.info("⏳ Uploading file to OCR.space and extracting text...")
+    return parts
 
-    url = "https://api.ocr.space/parse/image"
-
+# -------------------------
+# Function: OCR with OCR.space API
+# -------------------------
+def ocr_space_file(filename, api_key, language="eng"):
     payload = {
-        "apikey": API_KEY,
-        "language": "eng",   # Tamil OCR not stable → use "eng" first
+        "apikey": api_key,
+        "language": language,
         "isOverlayRequired": False,
-        "filetype": "pdf"    # ✅ FIX → explicitly tell API it's a PDF
+        "OCREngine": 2,
+        "filetype": "PDF"
     }
-
-    # pass correct file object with filename
-    files = {
-        "file": (uploaded_file.name, uploaded_file.getvalue())
-    }
-
-    response = requests.post(url, data=payload, files=files)
-
+    with open(filename, "rb") as f:
+        response = requests.post(
+            "https://api.ocr.space/parse/image",
+            files={"file": f},
+            data=payload
+        )
     try:
-        result = response.json()
-    except Exception as e:
-        st.error(f"❌ Response parse error: {e}")
-        st.stop()
+        return response.json()
+    except:
+        return {"IsErroredOnProcessing": True, "ErrorMessage": ["Invalid JSON response"]}
 
-    # Error handling
-    if isinstance(result, dict) and result.get("IsErroredOnProcessing"):
-        st.error(f"❌ OCR API Error: {result.get('ErrorMessage')}")
-        st.stop()
+# -------------------------
+# Streamlit UI
+# -------------------------
+st.title("📄 PDF to Text (OCR.space API - 3 page limit per file)")
 
-    # Extract text
-    text = ""
-    if "ParsedResults" in result:
-        for item in result["ParsedResults"]:
-            text += item.get("ParsedText", "") + "\n"
+api_key = st.text_input("🔑 Enter your OCR.space API Key:", type="password")
+uploaded_file = st.file_uploader("📤 Upload PDF", type=["pdf"])
 
-    if not text.strip():
-        st.warning("⚠️ No text extracted. Try with English docs or use Tesseract locally.")
-    else:
-        st.success("✅ OCR extraction done!")
+if uploaded_file and api_key:
+    st.info("📑 Splitting PDF into 3-page chunks...")
+    pdf_parts = split_pdf(uploaded_file)
 
-        # Save to Word
-        doc = Document()
-        doc.add_paragraph(text)
-        output_path = "output.docx"
-        doc.save(output_path)
+    all_text = ""
+    for idx, part in enumerate(pdf_parts, start=1):
+        st.write(f"⏳ Processing Part {idx}...")
+        result = ocr_space_file(part, api_key, language="eng")
 
-        with open(output_path, "rb") as f:
-            st.download_button("📥 Download Word File", f, file_name="output.docx")
+        if result.get("IsErroredOnProcessing"):
+            st.error(f"❌ OCR API Error (Part {idx}): {result.get('ErrorMessage')}")
+        else:
+            parsed_results = result.get("ParsedResults", [])
+            for res in parsed_results:
+                all_text += res.get("ParsedText", "") + "\n"
+
+    if all_text.strip():
+        st.success("✅ OCR Completed Successfully!")
+        st.text_area("📜 Extracted Text:", all_text, height=400)
+
+        # Download as .txt
+        st.download_button(
+            label="💾 Download as TXT",
+            data=all_text,
+            file_name="ocr_output.txt",
+            mime="text/plain"
+        )
