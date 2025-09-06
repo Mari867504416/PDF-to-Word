@@ -1,48 +1,60 @@
 import streamlit as st
 import requests
 from docx import Document
-from io import BytesIO
 
-st.title("📄 PDF to Word (API4AI OCR - Unlimited Pages)")
+# 🔑 Your OCR.space API key
+API_KEY = "K89663616288957"
 
-# Your RapidAPI credentials
-api_host = "ocr43.p.rapidapi.com"
-api_url = "https://ocr43.p.rapidapi.com/v1/results"
-api_key = st.text_input("Enter RapidAPI Key:", type="password")
+st.title("📄 PDF to Word (OCR.space API)")
 
-uploaded = st.file_uploader("Upload PDF", type=["pdf"])
-if uploaded and api_key:
-    with st.spinner("Running OCR via API4AI..."):
-        files = {"url": uploaded.getvalue()}
-        headers = {
-            "X-RapidAPI-Key": api_key,
-            "X-RapidAPI-Host": api_host
-        }
-        response = requests.post(api_url, headers=headers, files=files)
-        try:
-            data = response.json()
-        except Exception as e:
-            st.error(f"Invalid response: {e}")
-            st.stop()
+uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
 
-        # Extract text
-        if not (data.get("results")):
-            st.error("No OCR results returned.")
-            st.stop()
+if uploaded_file:
+    st.info("⏳ Uploading file to OCR.space and extracting text...")
 
-        extracted = ""
-        for res in data["results"]:
-            extracted += res.get("entities", [{}])[0].get("objects", [{}])[0].get("entities", [{}])[0].get("text", "") + "\n"
+    url = "https://api.ocr.space/parse/image"
 
-        st.success("OCR Complete!")
+    payload = {
+        "apikey": API_KEY,
+        "language": "eng",   # Tamil OCR not stable → use "eng" first
+        "isOverlayRequired": False,
+        "filetype": "pdf"    # ✅ FIX → explicitly tell API it's a PDF
+    }
 
-        st.text_area("Extracted Text", extracted, height=400)
+    # pass correct file object with filename
+    files = {
+        "file": (uploaded_file.name, uploaded_file.getvalue())
+    }
 
-        # Download as Word
+    response = requests.post(url, data=payload, files=files)
+
+    try:
+        result = response.json()
+    except Exception as e:
+        st.error(f"❌ Response parse error: {e}")
+        st.stop()
+
+    # Error handling
+    if isinstance(result, dict) and result.get("IsErroredOnProcessing"):
+        st.error(f"❌ OCR API Error: {result.get('ErrorMessage')}")
+        st.stop()
+
+    # Extract text
+    text = ""
+    if "ParsedResults" in result:
+        for item in result["ParsedResults"]:
+            text += item.get("ParsedText", "") + "\n"
+
+    if not text.strip():
+        st.warning("⚠️ No text extracted. Try with English docs or use Tesseract locally.")
+    else:
+        st.success("✅ OCR extraction done!")
+
+        # Save to Word
         doc = Document()
-        for line in extracted.split("\n"):
-            doc.add_paragraph(line)
-        buf = BytesIO()
-        doc.save(buf)
-        buf.seek(0)
-        st.download_button("Download .docx", buffer=buf, file_name="output.docx")
+        doc.add_paragraph(text)
+        output_path = "output.docx"
+        doc.save(output_path)
+
+        with open(output_path, "rb") as f:
+            st.download_button("📥 Download Word File", f, file_name="output.docx")
