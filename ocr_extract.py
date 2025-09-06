@@ -7,7 +7,7 @@ st.set_page_config(page_title="PDF to Word OCR", layout="wide")
 st.title("PDF to Word OCR (Tamil + English) - Cloud Friendly")
 
 # Replace with your OCR.space API Key
-api_key = "YOUR_OCR_SPACE_API_KEY"
+api_key = "K89663616288957"
 
 uploaded_file = st.file_uploader("Upload PDF", type="pdf")
 
