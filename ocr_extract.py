@@ -9,7 +9,7 @@ st.title("📄 PDF/Image OCR Extractor (Tamil + English)")
 uploaded_file = st.file_uploader("Upload PDF or Image", type=["pdf", "png", "jpg", "jpeg"])
 
 # OCR.space API Key (replace with your key)
-API_KEY = "YOUR_OCR_SPACE_API_KEY"  # 🔑 Get from https://ocr.space/OCRAPI
+API_KEY = "K89663616288957"  # 🔑 Get from https://ocr.space/OCRAPI
 
 if uploaded_file is not None:
     st.info(f"✅ File uploaded: {uploaded_file.name}")
