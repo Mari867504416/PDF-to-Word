@@ -1,68 +1,65 @@
 import streamlit as st
 import requests
-from docx import Document
-from io import BytesIO
 
-st.set_page_config(page_title="PDF to Word OCR", layout="wide")
-st.title("PDF to Word OCR (Tamil + English) - Cloud Friendly")
+st.set_page_config(page_title="PDF OCR Extractor", layout="wide")
 
-# Replace with your OCR.space API Key
-api_key = "K89663616288957"
+st.title("📄 PDF/Image OCR Extractor (Tamil + English)")
 
-uploaded_file = st.file_uploader("Upload PDF", type="pdf")
+# Upload file
+uploaded_file = st.file_uploader("Upload PDF or Image", type=["pdf", "png", "jpg", "jpeg"])
 
-if uploaded_file:
-    st.write("🔄 Uploading PDF to OCR API...")
+# OCR.space API Key (replace with your key)
+API_KEY = "YOUR_OCR_SPACE_API_KEY"  # 🔑 Get from https://ocr.space/OCRAPI
 
-    try:
-        response = requests.post(
-            'https://api.ocr.space/parse/image',
-            files={"filename": uploaded_file.getvalue()},
-            data={"apikey": api_key, "language": "tam+eng", "isOverlayRequired": False},
-            timeout=120  # increase if PDF is large
-        )
-    except requests.exceptions.RequestException as e:
-        st.error(f"Network/API error: {e}")
-        st.stop()
+if uploaded_file is not None:
+    st.info(f"✅ File uploaded: {uploaded_file.name}")
 
-    # Parse response
-    try:
-        result = response.json()
-    except ValueError:
-        st.error("OCR API did not return valid JSON.")
-        st.stop()
+    if st.button("Run OCR"):
+        with st.spinner("🔍 Processing OCR..."):
+            try:
+                # Send file to OCR.space API
+                files = {"file": uploaded_file}
+                payload = {
+                    "apikey": API_KEY,
+                    "language": "tam+eng",  # Tamil + English
+                    "isOverlayRequired": False
+                }
 
-    # Check for API errors
-    if result.get("IsErroredOnProcessing"):
-        error_msg = result.get("ErrorMessage")
-        st.error(f"OCR API Error: {error_msg}")
-        st.stop()
+                response = requests.post(
+                    "https://api.ocr.space/parse/image",
+                    files=files,
+                    data=payload
+                )
 
-    # Extract text
-    parsed_text = ""
-    for page in result.get("ParsedResults", []):
-        parsed_text += page.get("ParsedText", "") + "\n\n"
+                # Convert response to JSON
+                result = response.json()
 
-    if not parsed_text.strip():
-        st.warning("No text detected in the PDF.")
-        st.stop()
+                # Check for errors
+                if result.get("IsErroredOnProcessing"):
+                    error_msg = result.get("ErrorMessage")
+                    st.error(f"❌ OCR API Error: {error_msg}")
+                    st.stop()
 
-    st.write("💾 OCR Completed!")
+                # Extract text
+                parsed_text = result["ParsedResults"][0]["ParsedText"]
 
-    # Save to Word document in memory
-    doc = Document()
-    for line in parsed_text.split("\n"):
-        doc.add_paragraph(line)
+                st.success("✅ OCR Extraction Completed!")
+                st.text_area("📄 Extracted Text:", parsed_text, height=400)
 
-    doc_bytes = BytesIO()
-    doc.save(doc_bytes)
-    doc_bytes.seek(0)
+                # Option to download text as .docx
+                from docx import Document
+                doc = Document()
+                doc.add_paragraph(parsed_text)
+                output_path = "output.docx"
+                doc.save(output_path)
 
-    st.download_button(
-        label="Download Word Document",
-        data=doc_bytes,
-        file_name="output.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+                with open(output_path, "rb") as f:
+                    st.download_button(
+                        label="⬇ Download as Word Document",
+                        data=f,
+                        file_name="extracted_text.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
 
-    st.text_area("OCR Output Preview", parsed_text, height=400)
+            except Exception as e:
+                st.error(f"⚠️ Error: {e}")
