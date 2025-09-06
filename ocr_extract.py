@@ -30,7 +30,7 @@ def split_pdf(uploaded_file, pages_per_file=3):
 # -------------------------
 def ocr_space_file(filename, api_key, language="eng"):
     payload = {
-        "apikey": api_key,
+        "apikey": K89663616288957,
         "language": language,
         "isOverlayRequired": False,
         "OCREngine": 2,
