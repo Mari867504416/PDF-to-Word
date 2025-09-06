@@ -3,7 +3,7 @@ import requests
 from docx import Document
 
 # 🔑 Your OCR.space API key
-API_KEY = "YOUR_OCR_API_KEY"
+API_KEY = "K89663616288957"
 
 st.title("📄 PDF to Word (OCR.space API)")
 
